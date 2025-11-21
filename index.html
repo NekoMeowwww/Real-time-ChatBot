@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Live Conversation</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-image: url('https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=2070&auto=format&fit=crop');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+        .bg-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6); 
+            backdrop-filter: blur(20px); 
+            z-index: -1;
+        }
+        
+        .nebula {
+            position: absolute;
+            width: 700px;
+            height: 700px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, rgba(168, 85, 247, 0.1) 40%, rgba(0, 0, 0, 0) 70%);
+            filter: blur(80px);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: breathe 8s infinite ease-in-out;
+            z-index: -1;
+            pointer-events: none;
+            transition: background 0.5s ease;
+        }
+        
+        /* 思考状态的光晕颜色 - 琥珀色 */
+        .nebula.thinking {
+            background: radial-gradient(circle, rgba(245, 158, 11, 0.3) 0%, rgba(251, 191, 36, 0.1) 40%, rgba(0, 0, 0, 0) 70%);
+            animation: breathe 2s infinite ease-in-out; /* 加速呼吸 */
+        }
+
+        .voice-orb {
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 
+                0 0 50px rgba(99, 102, 241, 0.2),
+                inset 0 0 30px rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        
+        .voice-orb.active {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(165, 180, 252, 0.9) 100%);
+            box-shadow: 0 0 80px rgba(99, 102, 241, 0.5);
+            border-color: transparent;
+        }
+        
+        /* 思考状态的球体样式 - 琥珀色 */
+        .voice-orb.thinking {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(252, 211, 77, 0.9) 100%); 
+            box-shadow: 0 0 80px rgba(245, 158, 11, 0.5);
+            transform: scale(1.1);
+            animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        .wave-bar {
+            width: 6px;
+            background-color: rgba(255, 255, 255, 0.3);
+            margin: 0 5px;
+            border-radius: 99px;
+            height: 12px;
+            transition: all 0.1s ease;
+        }
+        
+        .voice-orb.active .wave-bar {
+            background-color: #4f46e5;
+        }
+        
+        /* 思考时的波形条 - 深琥珀色且使用加载动画 */
+        .voice-orb.thinking .wave-bar {
+            background-color: #d97706; 
+            height: 10px !important; 
+            animation: wave-loading 1s ease-in-out infinite;
+        }
+        
+        @keyframes wave-loading {
+            0%, 100% { transform: scaleY(1); }
+            50% { transform: scaleY(2.5); }
+        }
+        
+        .voice-orb.thinking .wave-bar:nth-child(1) { animation-delay: 0s; }
+        .voice-orb.thinking .wave-bar:nth-child(2) { animation-delay: 0.2s; }
+        .voice-orb.thinking .wave-bar:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes breathe {
+            0%, 100% { opacity: 0.4; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 0.7; transform: translate(-50%, -50%) scale(1.15); }
+        }
+        
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+            70% { box-shadow: 0 0 0 30px rgba(245, 158, 11, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        }
+        
+        .control-dock {
+            position: absolute;
+            bottom: 40px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 99px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .btn-main-action {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+        }
+        
+        .btn-main-action.inactive {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .btn-main-action.inactive:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        .btn-main-action.active {
+            background: #ef4444;
+            color: white;
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
+            transform: rotate(135deg); 
+        }
+        
+        .btn-main-action.active:hover {
+            background: #dc2626;
+            transform: rotate(135deg) scale(1.1);
+            box-shadow: 0 12px 30px rgba(220, 38, 38, 0.5);
+        }
+
+        .status-text {
+            margin-top: 24px;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.6);
+            letter-spacing: 0.05em;
+            font-weight: 400;
+            text-transform: uppercase;
+            transition: opacity 0.3s;
+            height: 24px;
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="app" class="h-screen w-screen flex flex-col items-center justify-center relative">
+    <div class="bg-overlay"></div>
+
+    <!-- 动态光晕 -->
+    <div class="nebula" 
+         :class="{ 'thinking': isThinking }"
+         :style="{ transform: `translate(-50%, -50%) scale(${1 + audioLevel * 1.5})` }">
+    </div>
+
+    <div class="relative flex flex-col items-center justify-center z-10">
+        <!-- 声波球 -->
+        <div class="voice-orb" 
+             :class="{ 'active': isCalling && !isThinking, 'thinking': isThinking }" 
+             :style="{ transform: `scale(${1 + (isThinking ? 0.1 : audioLevel * 0.5)})` }">
+            
+            <!-- 模拟波形条 -->
+            <div class="wave-bar" :style="!isThinking ? { height: (isCalling ? 24 + audioLevel * 80 : 8) + 'px' } : {}"></div>
+            <div class="wave-bar" :style="!isThinking ? { height: (isCalling ? 36 + audioLevel * 120 : 12) + 'px' } : {}"></div>
+            <div class="wave-bar" :style="!isThinking ? { height: (isCalling ? 24 + audioLevel * 80 : 8) + 'px' } : {}"></div>
+        </div>
+
+        <div class="status-text">
+            {{ statusText }}
+        </div>
+    </div>
+
+    <div class="control-dock">
+        <button 
+            @click="toggleCall" 
+            class="btn-main-action"
+            :class="isCalling ? 'active' : 'inactive'"
+            :title="isCalling ? '挂断' : '点击开始对话'"
+        >
+            <i class="fas" :class="isCalling ? 'fa-plus' : 'fa-microphone'"></i>
+        </button>
+    </div>
+
+</div>
+
+<script>
+const { createApp, ref, onUnmounted } = Vue;
+
+createApp({
+    setup() {
+        const isCalling = ref(false);
+        const isThinking = ref(false); // 思考状态
+        const statusText = ref("点击麦克风开始"); 
+        const audioLevel = ref(0); 
+        
+        let websocket = null;
+        let audioContext = null;
+        let mediaStream = null;
+        let scriptProcessor = null;
+        let nextStartTime = 0; 
+
+        const toggleCall = async () => {
+            if (isCalling.value) {
+                endCall();
+            } else {
+                await startCall();
+            }
+        };
+
+        const startCall = async () => {
+            try {
+                statusText.value = "连接中...";
+                websocket = new WebSocket("ws://localhost:8000/ws/live");
+                
+                websocket.onopen = () => {
+                    console.log("Connected to server");
+                    statusText.value = "正在聆听";
+                    isCalling.value = true;
+                    isThinking.value = false;
+                    startAudioCapture();
+                };
+
+                websocket.onmessage = async (event) => {
+                    // 1. 处理二进制音频
+                    if (event.data instanceof Blob || event.data instanceof ArrayBuffer) {
+                        const arrayBuffer = event.data instanceof Blob ? await event.data.arrayBuffer() : event.data;
+                        playAudioChunk(arrayBuffer);
+                    } 
+                    // 2. 处理 JSON 控制信号
+                    else if (typeof event.data === 'string') {
+                        try {
+                            const msg = JSON.parse(event.data);
+                            handleControlSignal(msg);
+                        } catch (e) {
+                            // 忽略非 JSON 文本
+                        }
+                    }
+                };
+
+                websocket.onclose = () => {
+                    console.log("Disconnected");
+                    endCall();
+                };
+                
+                websocket.onerror = (err) => {
+                    console.error("WS Error", err);
+                    statusText.value = "连接失败";
+                };
+
+            } catch (e) {
+                console.error(e);
+                alert("无法连接到麦克风或服务器");
+                statusText.value = "连接错误";
+            }
+        };
+        
+        const handleControlSignal = (msg) => {
+            if (msg.type === 'rag_start') {
+                // 开始思考 (琥珀色呼吸)
+                isThinking.value = true;
+                statusText.value = "正在思考...";
+            } else if (msg.type === 'rag_end') {
+                // 思考结束，回到对话状态 (蓝色波纹)
+                isThinking.value = false;
+                statusText.value = "正在聆听";
+            }
+        };
+
+        const startAudioCapture = async () => {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+            
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                
+                const analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                source.connect(analyser);
+                
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                const updateVisuals = () => {
+                    if (!isCalling.value) return;
+                    analyser.getByteFrequencyData(dataArray);
+                    let sum = 0;
+                    for(let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                    let average = sum / dataArray.length;
+                    audioLevel.value = average / 64; 
+                    requestAnimationFrame(updateVisuals);
+                };
+                updateVisuals();
+
+                scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+                source.connect(scriptProcessor);
+                scriptProcessor.connect(audioContext.destination);
+
+                scriptProcessor.onaudioprocess = (e) => {
+                    if (!websocket || websocket.readyState !== WebSocket.OPEN) return;
+
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    const pcmData = floatTo16BitPCM(inputData);
+                    websocket.send(pcmData);
+                };
+
+            } catch (err) {
+                console.error("Error accessing microphone:", err);
+                statusText.value = "无法访问麦克风";
+            }
+        };
+
+        const playAudioChunk = (arrayBuffer) => {
+            if (!audioContext) return;
+            
+            // [修改] 移除了 isThinking.value = false;
+            // 这样安抚话术的音频播放时，界面依然保持“思考中”的琥珀色动画
+            // 只有收到后端 rag_end 信号才会变回蓝色
+
+            const int16Array = new Int16Array(arrayBuffer);
+            const float32Array = new Float32Array(int16Array.length);
+            
+            for (let i = 0; i < int16Array.length; i++) {
+                float32Array[i] = int16Array[i] / 32768;
+            }
+
+            const audioBuffer = audioContext.createBuffer(1, float32Array.length, 24000);
+            audioBuffer.getChannelData(0).set(float32Array);
+
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.destination);
+            
+            const currentTime = audioContext.currentTime;
+            if (nextStartTime < currentTime) {
+                nextStartTime = currentTime;
+            }
+            source.start(nextStartTime);
+            nextStartTime += audioBuffer.duration;
+        };
+
+        const floatTo16BitPCM = (input) => {
+            const output = new Int16Array(input.length);
+            for (let i = 0; i < input.length; i++) {
+                const s = Math.max(-1, Math.min(1, input[i]));
+                output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            return output.buffer;
+        };
+
+        const endCall = () => {
+            isCalling.value = false;
+            isThinking.value = false;
+            statusText.value = "点击麦克风开始";
+            audioLevel.value = 0;
+
+            if (websocket) {
+                websocket.close();
+                websocket = null;
+            }
+            
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+
+            if (scriptProcessor) {
+                scriptProcessor.disconnect();
+                scriptProcessor = null;
+            }
+
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            
+            nextStartTime = 0;
+        };
+
+        onUnmounted(() => {
+            endCall();
+        });
+
+        return {
+            isCalling,
+            isThinking,
+            statusText,
+            audioLevel,
+            toggleCall
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>
