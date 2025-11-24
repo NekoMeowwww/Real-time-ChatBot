@@ -16,7 +16,7 @@ API_KEY = "0b507316-4d95-4431-864b-19dbcc586406"
 
 # 3. [核心] Service Resource ID (服务资源 ID)
 # 请在火山引擎控制台 -> 知识库 -> 服务管理 中查看 (通常以 service- 开头)
-SERVICE_RESOURCE_ID = "kb-service-dfd8613feb8a6770" 
+SERVICE_RESOURCE_ID = "kb-service-22fb75140970c27d" 
 # -----------------------------------
 
 # 接口地址: Service Chat (对话问答接口)

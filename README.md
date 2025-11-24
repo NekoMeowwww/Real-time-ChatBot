@@ -12,15 +12,13 @@ AI 实时语音对话系统 (Gemini Live 风格)
 
 沉浸式 UI：使用 Tailwind CSS 构建的极简深色界面，包含磨砂玻璃（Glassmorphism）效果和实时音频可视化动效。
 
-全双工交互：支持随时打断 AI 说话（需后端 VAD 支持配合），类似真人通话体验。
-
 轻量级架构：前端无构建步骤（Vue 3 CDN），后端基于高性能 FastAPI。
 
 🛠️ 技术栈
 
 前端：Vue 3, Tailwind CSS, Web Audio API (ScriptProcessor/AudioContext)
 
-后端：Python 3.8+, FastAPI, Uvicorn, Websockets
+后端：Python 3.7, FastAPI, Uvicorn, Websockets
 
 AI 服务：火山引擎 (Volcengine) 豆包实时语音大模型 SDK
 

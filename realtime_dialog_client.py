@@ -88,7 +88,7 @@ class RealtimeDialogClient:
         """发送Hello消息"""
         if not self.ws: return
         payload = {
-            "content": "你好，我是湖州隆辕智控小助手，有什么可以帮助你的？",
+            "content": "你好，有什么问题？",
         }
         hello_request = bytearray(protocol.generate_header())
         hello_request.extend(int(300).to_bytes(4, 'big'))

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Live Conversation</title>
+    <title>湖州隆辕小助手</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -43,10 +43,9 @@
             transition: background 0.5s ease;
         }
         
-        /* 思考状态的光晕颜色 - 琥珀色 */
         .nebula.thinking {
             background: radial-gradient(circle, rgba(245, 158, 11, 0.3) 0%, rgba(251, 191, 36, 0.1) 40%, rgba(0, 0, 0, 0) 70%);
-            animation: breathe 2s infinite ease-in-out; /* 加速呼吸 */
+            animation: breathe 2s infinite ease-in-out; 
         }
 
         .voice-orb {
@@ -71,7 +70,6 @@
             border-color: transparent;
         }
         
-        /* 思考状态的球体样式 - 琥珀色 */
         .voice-orb.thinking {
             background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(252, 211, 77, 0.9) 100%); 
             box-shadow: 0 0 80px rgba(245, 158, 11, 0.5);
@@ -92,7 +90,6 @@
             background-color: #4f46e5;
         }
         
-        /* 思考时的波形条 - 深琥珀色且使用加载动画 */
         .voice-orb.thinking .wave-bar {
             background-color: #d97706; 
             height: 10px !important; 
@@ -127,10 +124,11 @@
             -webkit-backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 99px;
-            padding: 12px;
+            padding: 12px 24px; 
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: 20px; 
             box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
             transition: all 0.3s ease;
         }
@@ -149,6 +147,67 @@
             position: relative;
         }
         
+        /* 次级按钮 (RAG 开关) */
+        .btn-sub-action {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-sub-action:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .btn-sub-action.active {
+            background: rgba(255, 255, 255, 0.9);
+            color: #4f46e5;
+            box-shadow: 0 0 15px rgba(79, 70, 229, 0.4);
+        }
+
+        /* 打断按钮 (Stop) */
+        .btn-interrupt {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.2); /* 默认非常暗 */
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            pointer-events: none; /* 默认不可点 */
+        }
+
+        /* AI 说话时激活打断按钮 */
+        .btn-interrupt.active {
+            background: #ef4444; /* 红色 */
+            color: white;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+            pointer-events: auto;
+            transform: scale(1.1); /* 稍稍放大 */
+            border-color: transparent;
+        }
+
+        .btn-interrupt.active:hover {
+            background: #dc2626;
+            transform: scale(1.15);
+        }
+
         .btn-main-action.inactive {
             background: rgba(255, 255, 255, 0.15);
             color: white;
@@ -191,19 +250,16 @@
 <div id="app" class="h-screen w-screen flex flex-col items-center justify-center relative">
     <div class="bg-overlay"></div>
 
-    <!-- 动态光晕 -->
     <div class="nebula" 
          :class="{ 'thinking': isThinking }"
          :style="{ transform: `translate(-50%, -50%) scale(${1 + audioLevel * 1.5})` }">
     </div>
 
     <div class="relative flex flex-col items-center justify-center z-10">
-        <!-- 声波球 -->
         <div class="voice-orb" 
              :class="{ 'active': isCalling && !isThinking, 'thinking': isThinking }" 
              :style="{ transform: `scale(${1 + (isThinking ? 0.1 : audioLevel * 0.5)})` }">
             
-            <!-- 模拟波形条 -->
             <div class="wave-bar" :style="!isThinking ? { height: (isCalling ? 24 + audioLevel * 80 : 8) + 'px' } : {}"></div>
             <div class="wave-bar" :style="!isThinking ? { height: (isCalling ? 36 + audioLevel * 120 : 12) + 'px' } : {}"></div>
             <div class="wave-bar" :style="!isThinking ? { height: (isCalling ? 24 + audioLevel * 80 : 8) + 'px' } : {}"></div>
@@ -215,6 +271,17 @@
     </div>
 
     <div class="control-dock">
+        <!-- RAG 开关按钮 -->
+        <button 
+            @click="toggleRag" 
+            class="btn-sub-action"
+            :class="{ 'active': isRagEnabled }"
+            title="知识库开关 (RAG)"
+        >
+            <i class="fas fa-book"></i>
+        </button>
+
+        <!-- 主通话按钮 -->
         <button 
             @click="toggleCall" 
             class="btn-main-action"
@@ -222,6 +289,16 @@
             :title="isCalling ? '挂断' : '点击开始对话'"
         >
             <i class="fas" :class="isCalling ? 'fa-plus' : 'fa-microphone'"></i>
+        </button>
+        
+        <!-- 打断按钮 (Stop) -->
+        <button 
+            @click="interruptAi" 
+            class="btn-interrupt"
+            :class="{ 'active': isAiSpeaking }"
+            title="打断 AI 回复"
+        >
+            <i class="fas fa-stop"></i>
         </button>
     </div>
 
@@ -233,7 +310,9 @@ const { createApp, ref, onUnmounted } = Vue;
 createApp({
     setup() {
         const isCalling = ref(false);
-        const isThinking = ref(false); // 思考状态
+        const isThinking = ref(false); 
+        const isRagEnabled = ref(false); 
+        const isAiSpeaking = ref(false); // [新增] AI 是否正在说话的状态
         const statusText = ref("点击麦克风开始"); 
         const audioLevel = ref(0); 
         
@@ -242,6 +321,87 @@ createApp({
         let mediaStream = null;
         let scriptProcessor = null;
         let nextStartTime = 0; 
+
+        const toggleRag = () => {
+            isRagEnabled.value = !isRagEnabled.value;
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                const msg = { type: "rag_switch", enabled: isRagEnabled.value };
+                websocket.send(JSON.stringify(msg));
+            }
+        };
+
+        // [新增] 打断 AI
+        const interruptAi = () => {
+            if (!isAiSpeaking.value) return;
+            
+            console.log("Interrupting AI...");
+            // 1. 发送打断指令给后端
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.send(JSON.stringify({ type: "interrupt" }));
+            }
+            
+            // 2. 立即停止前端音频播放
+            stopAudioPlayback();
+            
+            // 3. 重置状态
+            isAiSpeaking.value = false;
+            isThinking.value = false;
+            statusText.value = "已打断";
+        };
+
+        // [新增] 停止音频播放的逻辑
+        const stopAudioPlayback = () => {
+            if (audioContext) {
+                // 挂起当前上下文（最快停止声音的方法）
+                audioContext.suspend().then(() => {
+                    // 关闭旧的 context
+                    audioContext.close();
+                    // 重新创建一个新的 context 准备下一次播放
+                    // 注意：必须保持 24000Hz
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+                    nextStartTime = 0;
+                    // 重新连接录音节点 (因为 audioContext 重建了)
+                    if (mediaStream) {
+                        setupAudioNodes(); 
+                    }
+                });
+            }
+        };
+
+        const setupAudioNodes = () => {
+            if (!audioContext || !mediaStream) return;
+            const source = audioContext.createMediaStreamSource(mediaStream);
+            const analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            source.connect(analyser);
+            
+            // 重新启动可视化
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            const updateVisuals = () => {
+                if (!isCalling.value) return;
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for(let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                let average = sum / dataArray.length;
+                audioLevel.value = average / 64; 
+                requestAnimationFrame(updateVisuals);
+            };
+            updateVisuals();
+
+            scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+            source.connect(scriptProcessor);
+            scriptProcessor.connect(audioContext.destination);
+
+            scriptProcessor.onaudioprocess = (e) => {
+                if (!websocket || websocket.readyState !== WebSocket.OPEN) return;
+                // 只有当 AI 不在说话时才发送音频 (半双工，防止回声)
+                // 虽然这是前端逻辑，但最好还是发给后端让后端处理半双工
+                // 这里为了简单，直接发
+                const inputData = e.inputBuffer.getChannelData(0);
+                const pcmData = floatTo16BitPCM(inputData);
+                websocket.send(pcmData);
+            };
+        };
 
         const toggleCall = async () => {
             if (isCalling.value) {
@@ -254,97 +414,78 @@ createApp({
         const startCall = async () => {
             try {
                 statusText.value = "连接中...";
-                websocket = new WebSocket("ws://localhost:8000/ws/live");
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const host = window.location.hostname || 'localhost';
+                const port = '8000'; 
+                const wsUrl = `${protocol}//${host}:${port}/ws/live`;
+                
+                websocket = new WebSocket(wsUrl);
                 
                 websocket.onopen = () => {
-                    console.log("Connected to server");
                     statusText.value = "正在聆听";
                     isCalling.value = true;
                     isThinking.value = false;
+                    isAiSpeaking.value = false;
                     startAudioCapture();
+                    
+                    const msg = { type: "rag_switch", enabled: isRagEnabled.value };
+                    websocket.send(JSON.stringify(msg));
                 };
 
                 websocket.onmessage = async (event) => {
-                    // 1. 处理二进制音频
                     if (event.data instanceof Blob || event.data instanceof ArrayBuffer) {
                         const arrayBuffer = event.data instanceof Blob ? await event.data.arrayBuffer() : event.data;
+                        
+                        // [修改] 收到音频数据，标记 AI 正在说话
+                        if (!isAiSpeaking.value) {
+                            isAiSpeaking.value = true;
+                            statusText.value = "AI 回复中...";
+                        }
+                        
                         playAudioChunk(arrayBuffer);
                     } 
-                    // 2. 处理 JSON 控制信号
                     else if (typeof event.data === 'string') {
                         try {
                             const msg = JSON.parse(event.data);
                             handleControlSignal(msg);
-                        } catch (e) {
-                            // 忽略非 JSON 文本
-                        }
+                        } catch (e) {}
                     }
                 };
 
                 websocket.onclose = () => {
-                    console.log("Disconnected");
                     endCall();
                 };
                 
                 websocket.onerror = (err) => {
-                    console.error("WS Error", err);
                     statusText.value = "连接失败";
                 };
 
             } catch (e) {
-                console.error(e);
                 alert("无法连接到麦克风或服务器");
-                statusText.value = "连接错误";
             }
         };
         
         const handleControlSignal = (msg) => {
             if (msg.type === 'rag_start') {
-                // 开始思考 (琥珀色呼吸)
                 isThinking.value = true;
                 statusText.value = "正在思考...";
             } else if (msg.type === 'rag_end') {
-                // 思考结束，回到对话状态 (蓝色波纹)
                 isThinking.value = false;
+                // rag_end 后通常紧接着音频，这里可以预设为 speaking
+                isAiSpeaking.value = true; 
+                statusText.value = "AI 准备回复";
+            } else if (msg.type === 'tts_end') {
+                // [新增] 收到 TTS 结束信号，重置说话状态
+                isAiSpeaking.value = false;
                 statusText.value = "正在聆听";
             }
         };
 
         const startAudioCapture = async () => {
             audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
-            
             try {
                 mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const source = audioContext.createMediaStreamSource(mediaStream);
-                
-                const analyser = audioContext.createAnalyser();
-                analyser.fftSize = 256;
-                source.connect(analyser);
-                
-                const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                const updateVisuals = () => {
-                    if (!isCalling.value) return;
-                    analyser.getByteFrequencyData(dataArray);
-                    let sum = 0;
-                    for(let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                    let average = sum / dataArray.length;
-                    audioLevel.value = average / 64; 
-                    requestAnimationFrame(updateVisuals);
-                };
-                updateVisuals();
-
-                scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
-                source.connect(scriptProcessor);
-                scriptProcessor.connect(audioContext.destination);
-
-                scriptProcessor.onaudioprocess = (e) => {
-                    if (!websocket || websocket.readyState !== WebSocket.OPEN) return;
-
-                    const inputData = e.inputBuffer.getChannelData(0);
-                    const pcmData = floatTo16BitPCM(inputData);
-                    websocket.send(pcmData);
-                };
-
+                setupAudioNodes();
             } catch (err) {
                 console.error("Error accessing microphone:", err);
                 statusText.value = "无法访问麦克风";
@@ -353,21 +494,18 @@ createApp({
 
         const playAudioChunk = (arrayBuffer) => {
             if (!audioContext) return;
-            
-            // [修改] 移除了 isThinking.value = false;
-            // 这样安抚话术的音频播放时，界面依然保持“思考中”的琥珀色动画
-            // 只有收到后端 rag_end 信号才会变回蓝色
+            // 确保 context 是 running 状态
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
 
             const int16Array = new Int16Array(arrayBuffer);
             const float32Array = new Float32Array(int16Array.length);
-            
             for (let i = 0; i < int16Array.length; i++) {
                 float32Array[i] = int16Array[i] / 32768;
             }
-
             const audioBuffer = audioContext.createBuffer(1, float32Array.length, 24000);
             audioBuffer.getChannelData(0).set(float32Array);
-
             const source = audioContext.createBufferSource();
             source.buffer = audioBuffer;
             source.connect(audioContext.destination);
@@ -392,6 +530,7 @@ createApp({
         const endCall = () => {
             isCalling.value = false;
             isThinking.value = false;
+            isAiSpeaking.value = false;
             statusText.value = "点击麦克风开始";
             audioLevel.value = 0;
 
@@ -425,6 +564,10 @@ createApp({
         return {
             isCalling,
             isThinking,
+            isRagEnabled,
+            isAiSpeaking,
+            toggleRag,
+            interruptAi,
             statusText,
             audioLevel,
             toggleCall

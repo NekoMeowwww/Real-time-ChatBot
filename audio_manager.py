@@ -13,7 +13,7 @@ logger = logging.getLogger("DialogSession")
 
 class DialogSession:
     """
-    服务器端对话会话管理类 (集成 RAG + 半双工防打断模式)
+    服务器端对话会话管理类 (集成 RAG 开关 + 半双工防打断 + 超时看门狗 + 主动打断支持)
     """
     
     def __init__(self, 
@@ -37,22 +37,53 @@ class DialogSession:
         self.is_session_finished = False
         self.current_asr_text = ""
         
-        # [修改] 静音标志位：用于拦截 AI 的幻觉抢答 (RAG 期间)
+        # 状态标志
         self.mute_audio = False
-        
-        # [新增] 响应状态锁：True 表示 AI 正在思考或说话，此时拒绝用户输入
         self.is_responding = False
-        
-        # [新增] 待完成 TTS 任务计数器 (用于 RAG 流程：安抚词+正式回答=2)
         self.pending_tts_count = 0
+        self.rag_enabled = False
         
         self.filler_trigger_word = "收到" 
+        
+        # 看门狗任务引用
+        self.watchdog_task = None
+        # RAG 任务引用 (用于打断)
+        self.rag_task = None
 
         self.simple_chat_keywords = {
             "你好", "您好", "嗨", "Hello", "Hi", "喂", "在吗",
             "谢谢", "感谢", "好的", "收到", "明白", "知道了", "OK",
             "再见", "拜拜", "没事", "没有", "对", "是的", "行"
         }
+
+    def set_rag_enabled(self, enabled: bool):
+        self.rag_enabled = enabled
+        logger.info(f"RAG mode set to: {self.rag_enabled}")
+
+    # [新增] 处理客户端发来的打断指令
+    async def handle_interrupt(self):
+        logger.info("Processing client interrupt request...")
+        
+        # 1. 立即开启静音，拦截后续音频
+        self.mute_audio = True
+        
+        # 2. 取消正在进行的 RAG 任务
+        if self.rag_task and not self.rag_task.done():
+            self.rag_task.cancel()
+            logger.info("Cancelled running RAG task.")
+            
+        # 3. 取消看门狗
+        if self.watchdog_task:
+            self.watchdog_task.cancel()
+            
+        # 4. 重置状态
+        self.is_responding = False
+        self.pending_tts_count = 0
+        self.current_asr_text = ""
+        
+        # 5. 通知前端结束状态 (虽然前端点击时可能已经重置了，但双重保险)
+        await self._notify_frontend("tts_end") 
+        await self._notify_frontend("rag_end") # 确保思考状态也结束
 
     async def start(self) -> None:
         try:
@@ -68,6 +99,10 @@ class DialogSession:
     async def stop(self):
         if not self.is_running: return
         self.is_running = False
+        
+        if self.watchdog_task: self.watchdog_task.cancel()
+        if self.rag_task: self.rag_task.cancel()
+            
         logger.info(f"Stopping session {self.session_id}...")
         try:
             await self.client.finish_session()
@@ -77,16 +112,8 @@ class DialogSession:
             logger.error(f"Error closing session: {e}")
 
     async def push_audio(self, audio_chunk: bytes):
-        """
-        推送音频到服务端
-        [核心修改] 半双工逻辑：如果 AI 正在响应，直接丢弃用户的音频输入。
-        """
         if not self.is_running: return
-        
-        # 如果 AI 正在处理或说话，无视用户说话 (防打断)
-        if self.is_responding:
-            return
-
+        if self.is_responding: return # 半双工防打断
         try:
             await self.client.task_request(audio_chunk)
         except Exception as e:
@@ -112,10 +139,7 @@ class DialogSession:
         msg_type = response.get('message_type')
 
         if msg_type == 'SERVER_ACK' and isinstance(response.get('payload_msg'), bytes):
-            # 静音拦截逻辑 (仅用于 RAG 思考期间屏蔽幻觉)
-            if self.mute_audio:
-                return 
-            
+            if self.mute_audio: return 
             if self.output_callback:
                 await self.output_callback(response['payload_msg'])
 
@@ -126,22 +150,39 @@ class DialogSession:
             logger.error(f"Server Error: {response.get('payload_msg')}")
 
     async def _notify_frontend(self, msg_type: str):
-        """发送 JSON 控制信号给前端"""
         if self.output_callback:
             await self.output_callback({"type": msg_type})
             
     def _is_simple_chat(self, text: str) -> bool:
         if not text: return True
         clean_text = text.strip().rstrip(".,?!。，？！")
-        if clean_text in self.simple_chat_keywords:
-            return True
+        if len(clean_text) < 2: return True
+        if clean_text in self.simple_chat_keywords: return True
         return False
+
+    async def _response_watchdog(self, timeout=10):
+        try:
+            await asyncio.sleep(timeout)
+            if self.is_responding:
+                logger.warning(f"Response timeout ({timeout}s). Forcing unlock.")
+                self.is_responding = False
+                self.mute_audio = False
+                self.pending_tts_count = 0
+                await self._notify_frontend("rag_end") 
+                await self._notify_frontend("tts_end")
+        except asyncio.CancelledError:
+            pass
+
+    def _start_watchdog(self, timeout=10):
+        if self.watchdog_task:
+            self.watchdog_task.cancel()
+        self.watchdog_task = asyncio.create_task(self._response_watchdog(timeout))
 
     async def _handle_full_response(self, response: Dict[str, Any]):
         event = response.get('event')
         payload = response.get('payload_msg', {})
         
-        # A. ASR 文本捕获
+        # A. ASR Update
         text = None
         if 'extra' in payload:
             text = payload['extra'].get('origin_text')
@@ -150,53 +191,52 @@ class DialogSession:
         if text:
             self.current_asr_text = text
 
-        # B. [核心] VAD End -> 用户说完话，AI 开始处理
-        if event == 459: # VAD End
+        # B. VAD End
+        if event == 459:
             logger.info(f"[VAD END] Query: '{self.current_asr_text}'")
             
             if self.current_asr_text:
-                # 锁定状态，禁止用户打断
                 self.is_responding = True 
+                self._start_watchdog(10)
                 
-                # 判断流程：闲聊 vs RAG
-                if self._is_simple_chat(self.current_asr_text):
-                    logger.info("Simple chat detected.")
-                    self.pending_tts_count = 1 # 期待 1 次回答结束
+                if not self.rag_enabled:
+                    logger.info("RAG Disabled. Using standard AI response.")
+                    self.pending_tts_count = 1
                     self.current_asr_text = ""
-                    return # 直接返回，让豆包默认处理
+                    return
 
                 # RAG 流程
-                self.mute_audio = True # 开启静音拦截幻觉
-                self.pending_tts_count = 2 # 期待 2 次回答 (安抚词 + 最终结果)
-                
+                self.mute_audio = True
+                self.pending_tts_count = 2
                 await self._notify_frontend("rag_start")
-                asyncio.create_task(self._execute_rag_flow(self.current_asr_text))
+                # 保存 task 引用以便打断
+                self.rag_task = asyncio.create_task(self._execute_rag_flow(self.current_asr_text))
                 self.current_asr_text = ""
             else:
                 logger.warning("VAD ended but no text.")
 
-        # C. [核心] Event 359 -> TTS 播放结束
+        # C. TTS Finished
         elif event == 359:
-            # 减少待完成任务计数
             if self.pending_tts_count > 0:
                 self.pending_tts_count -= 1
-                logger.info(f"TTS Finished. Pending count: {self.pending_tts_count}")
             
-            # 如果所有 TTS 都播放完了，解锁，允许用户进行下一轮对话
             if self.pending_tts_count <= 0:
                 if self.is_responding:
                     logger.info("Turn Finished. Unlocking input.")
                     self.is_responding = False
-                    # 确保静音关闭 (防止意外卡死)
                     self.mute_audio = False
+                    if self.watchdog_task: self.watchdog_task.cancel()
+                    # [新增] 通知前端 TTS 结束，可以禁用打断按钮了
+                    await self._notify_frontend("tts_end")
 
         elif event == 450:
-            # 理论上，因为我们 block 了音频，不会触发 Event 450。
-            # 但如果触发了，还是要重置状态以防卡死。
-            logger.info("User interrupt (Unexpected). Resetting.")
+            logger.info("User interrupt (Unexpected).")
             self.is_responding = False
             self.mute_audio = False 
+            if self.watchdog_task: self.watchdog_task.cancel()
             await self._notify_frontend("rag_end")
+            # [新增] 打断也意味着 TTS 结束
+            await self._notify_frontend("tts_end")
             
         elif event in [152, 153]:
             self.is_session_finished = True
@@ -204,38 +244,30 @@ class DialogSession:
 
     async def _execute_rag_flow(self, query_text: str):
         try:
-            # 1. 发送安抚话术 (计数+1，已在 event 459 预设为 2)
             filler_text = f"{self.filler_trigger_word}，请稍等。"
-            
             await self.client.chat_tts_text(is_user_querying=False, start=True, end=False, content=filler_text)
             await self.client.chat_tts_text(is_user_querying=False, start=False, end=True, content="")
             
-            # RAG 期间，我们不希望听到安抚话术，保持静音直到结果出来
-            # 但前端还是显示思考动画
-
-            # 2. 查询知识库
             rag_result = await search_knowledge_base(query_text)
             
-            # 3. 提交结果
             if rag_result:
                 logger.info(f"RAG Hit! Sending data.")
-                if self.mute_audio: 
-                    self.mute_audio = False
-                
+                if self.mute_audio: self.mute_audio = False
                 await self._notify_frontend("rag_end")
-                
                 await self.client.chat_rag_text(is_user_querying=False, external_rag=rag_result)
             else:
                 logger.info("RAG Miss.")
-                if self.mute_audio:
-                    self.mute_audio = False
-                
+                if self.mute_audio: self.mute_audio = False
                 await self._notify_frontend("rag_end")
-
                 await self.client.chat_rag_text(is_user_querying=False, external_rag="")
 
+        except asyncio.CancelledError:
+            logger.info("RAG task cancelled.")
+            self.mute_audio = False # 确保取消时不做奇怪的状态残留
+            await self._notify_frontend("rag_end")
         except Exception as e:
             logger.error(f"RAG execution failed: {e}")
             self.mute_audio = False
-            self.is_responding = False # 出错时必须解锁
+            self.is_responding = False
+            if self.watchdog_task: self.watchdog_task.cancel()
             await self._notify_frontend("rag_end")
