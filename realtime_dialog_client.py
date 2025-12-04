@@ -3,7 +3,7 @@ import json
 import copy
 import logging
 from typing import Dict, Any
-
+import ssl
 import websockets
 
 # 确保这些模块存在于同级目录
@@ -26,11 +26,17 @@ class RealtimeDialogClient:
     async def connect(self) -> None:
         """建立WebSocket连接"""
         try:
+            # [修改点 2] 创建忽略 SSL 验证的上下文
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            
             self.ws = await websockets.connect(
                 self.config['base_url'],
                 extra_headers=self.config['headers'],
                 ping_interval=None,
-                max_size=None  # 建议：允许接收较大的消息
+                max_size=None,  # 建议：允许接收较大的消息
+                ssl=ssl_context # [修改点 3] 将 SSL 上下文注入连接
             )
         except Exception as e:
             logger.error(f"Connection failed: {e}")

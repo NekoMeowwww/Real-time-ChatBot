@@ -55,7 +55,7 @@ async def search_knowledge_base(query: str) -> str:
     try:
         async with aiohttp.ClientSession() as session:
             # 注意：超时时间设长一点，因为 Service Chat 需要 LLM 生成，比纯检索慢
-            async with session.post(KNOWLEDGE_CHAT_URL, headers=headers, json=payload, timeout=15) as resp:
+            async with session.post(KNOWLEDGE_CHAT_URL, headers=headers, ssl = False, json=payload, timeout=15) as resp:
                 
                 if resp.status != 200:
                     error_text = await resp.text()

@@ -4,6 +4,7 @@ import json
 from typing import Union
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse ,HTMLResponse
 from starlette.websockets import WebSocketState
 
 # 引入修改后的 DialogSession (audio_manager.py) 和 配置文件 (config.py)
@@ -24,6 +25,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+async def get_index():
+    return FileResponse("index.html")
 
 @app.websocket("/ws/live")
 async def websocket_endpoint(websocket: WebSocket):

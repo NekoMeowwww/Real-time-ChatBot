@@ -9,8 +9,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
+        /* --- 暖色调样式保持不变 --- */
         body {
-            background-image: url('https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=2070&auto=format&fit=crop');
+            background-image: url('https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=2070&auto=format&fit=crop');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
@@ -22,7 +23,7 @@
         .bg-overlay {
             position: absolute;
             inset: 0;
-            background: rgba(0, 0, 0, 0.6); 
+            background: linear-gradient(to bottom, rgba(67, 20, 7, 0.5), rgba(20, 10, 5, 0.7));
             backdrop-filter: blur(20px); 
             z-index: -1;
         }
@@ -31,7 +32,7 @@
             position: absolute;
             width: 700px;
             height: 700px;
-            background: radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, rgba(168, 85, 247, 0.1) 40%, rgba(0, 0, 0, 0) 70%);
+            background: radial-gradient(circle, rgba(249, 115, 22, 0.3) 0%, rgba(194, 65, 12, 0.1) 40%, rgba(0, 0, 0, 0) 70%);
             filter: blur(80px);
             border-radius: 50%;
             top: 50%;
@@ -44,7 +45,7 @@
         }
         
         .nebula.thinking {
-            background: radial-gradient(circle, rgba(245, 158, 11, 0.3) 0%, rgba(251, 191, 36, 0.1) 40%, rgba(0, 0, 0, 0) 70%);
+            background: radial-gradient(circle, rgba(251, 191, 36, 0.3) 0%, rgba(245, 158, 11, 0.1) 40%, rgba(0, 0, 0, 0) 70%);
             animation: breathe 2s infinite ease-in-out; 
         }
 
@@ -56,7 +57,7 @@
             backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.15);
             box-shadow: 
-                0 0 50px rgba(99, 102, 241, 0.2),
+                0 0 50px rgba(234, 88, 12, 0.2),
                 inset 0 0 30px rgba(255, 255, 255, 0.1);
             display: flex;
             align-items: center;
@@ -65,8 +66,8 @@
         }
         
         .voice-orb.active {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(165, 180, 252, 0.9) 100%);
-            box-shadow: 0 0 80px rgba(99, 102, 241, 0.5);
+            background: linear-gradient(135deg, rgba(255, 237, 213, 0.95) 0%, rgba(251, 146, 60, 0.9) 100%);
+            box-shadow: 0 0 80px rgba(234, 88, 12, 0.5);
             border-color: transparent;
         }
         
@@ -87,7 +88,7 @@
         }
         
         .voice-orb.active .wave-bar {
-            background-color: #4f46e5;
+            background-color: #9a3412; 
         }
         
         .voice-orb.thinking .wave-bar {
@@ -119,7 +120,7 @@
         .control-dock {
             position: absolute;
             bottom: 40px;
-            background: rgba(0, 0, 0, 0.3);
+            background: rgba(20, 10, 5, 0.4);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -147,7 +148,6 @@
             position: relative;
         }
         
-        /* 次级按钮 (RAG 开关) */
         .btn-sub-action {
             width: 48px;
             height: 48px;
@@ -171,11 +171,10 @@
 
         .btn-sub-action.active {
             background: rgba(255, 255, 255, 0.9);
-            color: #4f46e5;
-            box-shadow: 0 0 15px rgba(79, 70, 229, 0.4);
+            color: #ea580c; 
+            box-shadow: 0 0 15px rgba(234, 88, 12, 0.4);
         }
 
-        /* 打断按钮 (Stop) */
         .btn-interrupt {
             width: 48px;
             height: 48px;
@@ -188,18 +187,17 @@
             font-size: 18px;
             transition: all 0.3s ease;
             background: rgba(255, 255, 255, 0.05);
-            color: rgba(255, 255, 255, 0.2); /* 默认非常暗 */
+            color: rgba(255, 255, 255, 0.2);
             border: 1px solid rgba(255, 255, 255, 0.05);
-            pointer-events: none; /* 默认不可点 */
+            pointer-events: none;
         }
 
-        /* AI 说话时激活打断按钮 */
         .btn-interrupt.active {
-            background: #ef4444; /* 红色 */
+            background: #ef4444;
             color: white;
             box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
             pointer-events: auto;
-            transform: scale(1.1); /* 稍稍放大 */
+            transform: scale(1.1); 
             border-color: transparent;
         }
 
@@ -216,6 +214,7 @@
         
         .btn-main-action.inactive:hover {
             background: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 15px rgba(251, 146, 60, 0.3);
             transform: scale(1.05);
         }
 
@@ -235,14 +234,14 @@
         .status-text {
             margin-top: 24px;
             font-size: 0.9rem;
-            color: rgba(255, 255, 255, 0.6);
+            color: rgba(255, 255, 255, 0.7);
             letter-spacing: 0.05em;
             font-weight: 400;
             text-transform: uppercase;
             transition: opacity 0.3s;
             height: 24px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
-
     </style>
 </head>
 <body>
@@ -321,6 +320,33 @@ createApp({
         let mediaStream = null;
         let scriptProcessor = null;
         let nextStartTime = 0; 
+
+        // [新增] 状态监听器
+        // 定时检查 AudioContext 的播放时间，如果当前还在播放音频，则强制保持 isAiSpeaking 为 true
+        // 解决了后端提前发送 tts_end 导致按钮提前变灰的问题
+        const startStateMonitor = () => {
+            setInterval(() => {
+                if (!audioContext || !isCalling.value) return;
+                
+                // 核心逻辑：如果下一段音频的开始时间 > 当前时间，说明队列里还有音频没放完
+                // 我们给 0.1s 的缓冲
+                if (nextStartTime > audioContext.currentTime + 0.1) {
+                    if (!isAiSpeaking.value) {
+                        isAiSpeaking.value = true;
+                        statusText.value = "AI 回复中...";
+                    }
+                } else {
+                    // 如果时间到了，且之前是说话状态，说明真正播放完了
+                    if (isAiSpeaking.value) {
+                        isAiSpeaking.value = false;
+                        statusText.value = "正在聆听";
+                    }
+                }
+            }, 100); // 100ms 检查一次
+        };
+        
+        // 启动监听
+        startStateMonitor();
 
         const toggleRag = () => {
             isRagEnabled.value = !isRagEnabled.value;
@@ -415,9 +441,8 @@ createApp({
             try {
                 statusText.value = "连接中...";
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const host = window.location.hostname || 'localhost';
-                const port = '8000'; 
-                const wsUrl = `${protocol}//${host}:${port}/ws/live`;
+                const host = window.location.host; 
+                const wsUrl = `${protocol}//${host}/ws/live`;
                 
                 websocket = new WebSocket(wsUrl);
                 
@@ -475,9 +500,11 @@ createApp({
                 isAiSpeaking.value = true; 
                 statusText.value = "AI 准备回复";
             } else if (msg.type === 'tts_end') {
-                // [新增] 收到 TTS 结束信号，重置说话状态
-                isAiSpeaking.value = false;
-                statusText.value = "正在聆听";
+                // [关键修改] 收到 TTS 结束信号时，不再立即重置说话状态
+                // 而是交给 startStateMonitor 里的定时器去检测音频播放进度
+                // 这样能确保只要声音在响，按钮就是亮的
+                // isAiSpeaking.value = false;  <-- 注释掉这一行
+                // statusText.value = "正在聆听"; <-- 注释掉这一行
             }
         };
 
