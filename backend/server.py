@@ -1,14 +1,18 @@
 import asyncio
 import logging
 import json
-from typing import Union
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from typing import Union, Optional, Dict
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse ,HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.websockets import WebSocketState
+from pydantic import BaseModel, HttpUrl
+from pathlib import Path
 
 # 引入修改后的 DialogSession (audio_manager.py) 和 配置文件 (config.py)
 from audio_manager import DialogSession
+
 import config
 
 # 配置日志
@@ -26,9 +30,49 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 注意：不再使用字幕生成服务，直接使用事件 550 (ChatResponse) 获取 AI 回复文本
+# 如果需要手动生成字幕，可以保留字幕生成 API 端点
+caption_service = None
+streaming_caption_service = None
+
+# 配置静态文件服务（用于访问上传的文件）
+upload_dir = Path(getattr(config, "upload_dir", "uploads"))
+upload_dir.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
+
+# 字幕生成请求模型
+class CaptionSubmitRequest(BaseModel):
+    audio_url: HttpUrl
+    language: str = "zh-CN"
+    words_per_line: int = 46
+    max_lines: int = 1
+    use_itn: bool = False
+    use_punc: bool = True
+    use_capitalize: bool = False
+    use_ddc: bool = False
+    caption_type: str = "auto"
+    boosting_table_id: Optional[str] = None
+    boosting_table_name: Optional[str] = None
+    asr_appid: Optional[str] = None
+    with_speaker_info: bool = True
+
+class CaptionGenerateRequest(BaseModel):
+    audio_url: HttpUrl
+    language: str = "zh-CN"
+    words_per_line: int = 46
+    max_lines: int = 1
+    use_itn: bool = False
+    use_punc: bool = False
+    use_capitalize: bool = False
+    use_ddc: bool = False
+    caption_type: str = "auto"
+    timeout: int = 300
+    poll_interval: float = 2.0
+
 @app.get("/")
 async def get_index():
     return FileResponse("index.html")
+
 
 @app.websocket("/ws/live")
 async def websocket_endpoint(websocket: WebSocket):
@@ -61,8 +105,12 @@ async def websocket_endpoint(websocket: WebSocket):
             ws_config=ws_config,
             output_callback=send_to_browser,
             output_audio_format="pcm_s16le",
-            mod="audio"
+            mod="audio",
+            streaming_caption_service=None  # 不再使用流式字幕服务
         )
+        
+        # 注意：字幕回调在 DialogSession.__init__ 中已经设置，使用 output_callback
+        # 这里不需要重复设置，避免覆盖
     except Exception as e:
         logger.error(f"Failed to init session: {e}")
         await websocket.close()
@@ -75,7 +123,10 @@ async def websocket_endpoint(websocket: WebSocket):
             message = await websocket.receive()
 
             if "bytes" in message and message["bytes"]:
-                await session.push_audio(message["bytes"])
+                audio_data = message["bytes"]
+                
+                # 推送用户音频到实时语音对话服务
+                await session.push_audio(audio_data)
             
             elif "text" in message and message["text"]:
                 try:

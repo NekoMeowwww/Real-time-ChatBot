@@ -12,11 +12,11 @@ KNOWLEDGE_BASE_DOMAIN = "api-knowledgebase.mlp.cn-beijing.volces.com"
 
 # 2. API Key (Bearer Token)
 # 在这里直接填入火山控制台获取的 API Key
-API_KEY = "0b507316-4d95-4431-864b-19dbcc586406"
+API_KEY = "f58edcaf-d01c-4439-9ee4-21ac44ad3044"
 
 # 3. [核心] Service Resource ID (服务资源 ID)
 # 请在火山引擎控制台 -> 知识库 -> 服务管理 中查看 (通常以 service- 开头)
-SERVICE_RESOURCE_ID = "kb-service-22fb75140970c27d" 
+SERVICE_RESOURCE_ID = "kb-service-8b2a98ca73f1cea3" 
 # -----------------------------------
 
 # 接口地址: Service Chat (对话问答接口)
@@ -25,7 +25,7 @@ KNOWLEDGE_CHAT_URL = f"https://{KNOWLEDGE_BASE_DOMAIN}/api/knowledge/service/cha
 async def search_knowledge_base(query: str) -> str:
     """
     调用火山引擎知识库 Service Chat 接口
-    优势：支持 API Key 鉴权，配置简单，自带检索+生成
+    仅使用检索结果（result_list），不使用 generated_answer，避免与主模型回答混叠。
     """
     if not query:
         return ""
@@ -46,10 +46,8 @@ async def search_knowledge_base(query: str) -> str:
                 "content": query
             }
         ],
-        # 暂时使用非流式 (False)，确保先跑通。
-        # 虽然截图显示支持流式，但解析 SSE 需要更复杂的代码。
-        # 即使是非流式，该接口也会返回 result_list (检索片段)。
-        "stream": False 
+        # 仅检索，不要让知识库生成回答，避免与主对话模型重复
+        "stream": False
     }
 
     try:
@@ -68,13 +66,7 @@ async def search_knowledge_base(query: str) -> str:
                 # Service Chat 非流式返回结构通常包含 'data'
                 response_data = data.get("data", {})
                 
-                # 策略 A: 优先提取 result_list (原始知识片段)
-                # 这种方式让豆包实时模型自己组织语言，效果更自然
                 result_list = response_data.get("result_list", [])
-                
-                # 策略 B: 如果没有片段，提取 generated_answer (知识库已经生成的回答)
-                generated_answer = response_data.get("generated_answer", "")
-                
                 rag_payload = []
                 
                 if result_list:
@@ -84,17 +76,8 @@ async def search_knowledge_base(query: str) -> str:
                         title = item.get("title") or f"参考资料_{idx+1}"
                         if content:
                             rag_payload.append({"title": title, "content": content})
-                            
-                elif generated_answer:
-                    logger.info(f"[RAG] Got generated answer (No chunks). Using answer as context.")
-                    # 把知识库生成的回答当作唯一的“知识片段”喂给豆包
-                    rag_payload.append({
-                        "title": "知识库智能回答",
-                        "content": generated_answer
-                    })
-                
-                if not rag_payload:
-                    logger.warning("[RAG] API returned 200 but no content found.")
+                else:
+                    logger.warning("[RAG] API returned 200 but no result_list content.")
                     return ""
 
                 return json.dumps(rag_payload, ensure_ascii=False)

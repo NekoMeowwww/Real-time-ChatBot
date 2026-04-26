@@ -2,3 +2,5 @@ fastapi
 uvicorn
 websockets<11.0
 pyaudio
+aiofiles
+requests
