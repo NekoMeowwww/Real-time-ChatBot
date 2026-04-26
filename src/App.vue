@@ -104,7 +104,7 @@ const currentStreamingText = ref('');
 const messages = ref([
   {
     type: 'ai',
-    text: '你好，我是湖州隆辕智控AI小助手，有什么可以帮助你的吗？',
+    text: '你好，有什么可以帮助你的吗？',
     streaming: false
   }
 ]);
