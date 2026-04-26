@@ -46,27 +46,66 @@ pip install fastapi uvicorn websockets numpy
 
 2. 配置 API 信息
 
-在项目根目录下创建 config.py（如果你使用的是豆包官方 SDK 包，请参考其提供的配置模版），确保包含以下核心配置：
+项目根目录已包含 `config.py` 示例文件，需要替换以下 API 凭证：
 
-# config.py 示例
-appid = "你的APPID"
-token = "你的ACCESS_TOKEN"
-cluster = "volc_auth_cluster" # 或其他集群ID
+**第一步：获取凭证**
 
-# 必须包含 ws_connect_config 或 ws_config 字典
+1. 登录 [火山引擎控制台](https://console.volcengine.com/)
+2. 进入 ARK（豆包）或智能语音服务
+3. 获取以下信息：
+   - API App ID (`X-Api-App-ID`)
+   - API Access Key (`X-Api-Access-Key`)
+   - API App Key (`X-Api-App-Key`)
+   - Caption Service Access Token（可选）
+
+**第二步：配置凭证**
+
+编辑 `backend/config.py`，将以下占位符替换为实际的凭证值：
+
+```python
 ws_connect_config = {
-    "base_url": "wss://[openspeech.bytedance.com/api/v3/realtime/dialogue](https://openspeech.bytedance.com/api/v3/realtime/dialogue)",
+    "base_url": "wss://openspeech.bytedance.com/api/v3/realtime/dialogue",
     "headers": {
-        "X-Api-App-Id": appid,
-        "X-Api-Access-Key": token,
+        "X-Api-App-ID": "YOUR_APP_ID",  # ← 替换为实际 App ID
+        "X-Api-Access-Key": "YOUR_ACCESS_KEY",  # ← 替换为实际 Access Key
         "X-Api-Resource-Id": "volc.speech.dialog",
+        "X-Api-App-Key": "YOUR_APP_KEY",  # ← 替换为实际 App Key
+        "X-Api-Connect-Id": str(uuid.uuid4()),
     }
 }
 
-# 全局请求参数模版
-start_session_req = {
-    # ... 复制官方示例中的 JSON 结构 ...
+caption_service_config = {
+    "access_token": "YOUR_ACCESS_TOKEN",  # ← 替换为实际 Token
+    "base_url": "https://openspeech.bytedance.com/api/v1/vc"
 }
+```
+
+**或使用环境变量（推荐）**
+
+复制 `.env.example` 为 `.env`，并填入实际凭证：
+
+```bash
+cp .env.example .env
+# 编辑 .env 并填入凭证值
+```
+
+然后修改 `backend/config.py` 读取环境变量（需自行添加）：
+
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+ws_connect_config = {
+    "base_url": "wss://openspeech.bytedance.com/api/v3/realtime/dialogue",
+    "headers": {
+        "X-Api-App-ID": os.getenv("API_APP_ID"),
+        "X-Api-Access-Key": os.getenv("API_ACCESS_KEY"),
+        # ... 其他配置
+    }
+}
+```
 
 
 3. 启动后端服务
