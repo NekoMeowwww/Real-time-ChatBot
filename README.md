@@ -234,3 +234,17 @@ Q3: 报错 "cannot call recv while another coroutine is already waiting"？
 
 原因：WebSocket 竞争条件。
 解决：请使用本项目提供的修复版 realtime_dialog_client.py，其中移除了 finish_connection 中的 recv() 等待。
+
+## 许可证
+
+本项目采用 [MIT License](./LICENSE) 开源许可证。
+
+你可以自由使用、修改和分发本项目，只需在使用时保留原始的版权和许可证声明。
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+## 致谢
+
+感谢 [火山引擎](https://www.volcengine.com/) 提供的豆包实时语音 API。
